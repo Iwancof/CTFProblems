@@ -39,14 +39,14 @@ vtable とはC++でポリモーフィズムを実現するための機構の一�
              +-----------------------+
              | 0    prev size        |
              | 0x61 malloc header    |
-BaseMemo --> | &base\_memo\_vtable |
+BaseMemo --> | &base_memo_vtable     |
              | memo[0]               |
              | memo[...]             |
              | memo[9]               |
              +-----------------------+
              | 0    prev size        |
              | 0x61 malloc header    |
-SumMemo ---> | &sum\_memo\_vtable  |
+SumMemo ---> | &sum_memo_vtable      |
              | memo[0]               |
              | memo[...]             |
              | memo[9]               |
@@ -66,9 +66,10 @@ BaseMemo::add
 ## fake chunk のfree
 次に、大きなfake chunk をfreeしてlibcをleakする。
 StringMemoに適当なfake chunkをmemo[0]に書き込んでおく。例えば0x500のサイズを持つchunkとか。
-次に、先程説明したようにvtableをSumMemoに変え、SumMemoとして振る舞わせ、memo[1]=0x10,memo[2~9]=0としてshowする。
+次に、先程説明したようにvtableをSumMemoに変え、SumMemoとして振る舞わせ、memo[1]=0x10,memo[2...9]=0としてshowする。
 すると、memo[0]にはmallocした領域+0x10が書き込まれ、memo[1]=0に修正しておく。
 現在のmemoは以下の通りである。
+```
  +------------------+
  | 0: malloc()+0x10 |
  +------------------+
@@ -76,7 +77,7 @@ StringMemoに適当なfake chunkをmemo[0]に書き込んでおく。例えば0x
  +------------------+
  | 2~9:    0        |
  +------------------+
-
+```
  ここで、0はused(-1でない)ため、次にaddしたらvtableが書き換わる。ここで、leak しておいた bss を用いて、StringMemo の vtable を書き込むと、自身がStringMemo だと思い込むようになる。
 
 ここでそのStringMemoをdeleteすると、内部のポインタがすべてfreeされる。ここで、free(NULL)はなにもしないため、最初の fake chunk だけが free される。
@@ -95,6 +96,6 @@ AAWの周辺にfreeできる箇所を見つけるのは現実できではない�
 tcache を7個埋め、fastbinでdouble-freeする。そこでtcacheを空にすると余っているfastbinを手繰ってtcacheに移動する(個数は2だけどなんか2回以上取ってこれる)。
 最初のfastbinを取ってきたときに、fdに該当する箇所(vtableのptr)に、heapのアドレスを用いてsafe-linkingを回避しつつlibcのleak上をtcacheとして取ってきて、そこを\_\_free\_mallocを書き換えsystemにする。
 
-- \_\_free\_hook の書き換えによるシェルの奪取
+## \_\_free\_hook の書き換えによるシェルの奪取
 
 最後に /bin/sh\0 をfreeしてシェルが起動する。
